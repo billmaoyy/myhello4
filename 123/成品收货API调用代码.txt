@@ -1,0 +1,86 @@
+// 根据外部订单号，外部订单行号，供应商，数量 进行收货 成品(自动封库)
+	public static String receiptByExternReceipt_jc(String ExternReceiptKey,
+			String ExternLineNo, String qtyexpected, String StorerKey,
+			String toLoc, String ck, String user) {
+		String result = "";
+		ArrayList<XMLCODE> myList = new ArrayList<XMLCODE>();
+		myList.add(jasionXml.setRootElement("Message"));
+		myList.add(jasionXml.setElement("Message", "Head"));
+		myList.add(jasionXml.setElement("Message", "Body"));
+		myList.add(jasionXml.setElement("Head", "Sender"));
+		myList.add(jasionXml.setElement("Head", "Recipient"));
+		myList.add(jasionXml.setContent("Sender", "SystemID", "HAIER"));
+		myList.add(jasionXml.setContent("Recipient", "SystemID", "SCPRD_" + ck));//仓库
+		myList.add(jasionXml.setElement("Recipient", "SystemID"));
+		myList.add(jasionXml.setElement("Body", "AdvancedShipNotice"));
+		myList.add(jasionXml.setElement("AdvancedShipNotice",
+		"AdvancedShipNoticeHeader"));
+		myList.add(jasionXml.setElement("AdvancedShipNoticeHeader",
+		"AdvancedShipNoticeDetail"));
+		myList.add(jasionXml.setContent("AdvancedShipNoticeHeader",
+				"StorerKey", StorerKey));//货主
+		myList.add(jasionXml.setContent("AdvancedShipNoticeHeader",
+				"ExternReceiptKey", ExternReceiptKey));//生产订单号
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail",
+				"QtyReceived", qtyexpected));//预收货量
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail",
+				"ExternReceiptKey", ExternReceiptKey));
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail",
+				"ExternLineNo", ExternLineNo));
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail", "ToLoc",
+				toLoc));//至库位
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail", "Status",
+		"9"));
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail",
+				"Lottable04", MyUtils.getAPITime3()));
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail", "UOM", "EA"));//单位
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail", "PackKey",
+		"STD"));//包装
+		//去查询检测结果的接口表中是否有该生产订单
+		Connection conn = null;
+		conn = PropertiesConfig.LinkDatebase("interface");// 连接接口表
+		Statement rsetstmt = null;
+		ResultSet rset = null;
+		String sql = "select * from imes_cp_jc_result where externreceiptkey='"+ExternReceiptKey+"'";
+		log.info(sql);
+		try {
+			rsetstmt = conn.createStatement();
+			rset = rsetstmt.executeQuery(sql);
+			if (rset.next()) {//如果接口表里面查询出有值，则不进行封库
+			}else {		//如果接口表里面没有查询出值		
+		myList.add(jasionXml.setContent("AdvancedShipNoticeDetail", "ConditionCode",
+		"QCREQ"));//下线自动封库
+			}
+			rset.close();
+			rsetstmt.close();
+			conn.close();
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}	
+		//如果有则不封库
+		//如果没有则封库
+		// myList.add(jasionXml.setContent("AdvancedShipNoticeDetail",
+		// "Lottable04", PropertiesConfig.getTime()));
+		// myList.add(jasionXml
+		// .setContent("AdvancedShipNoticeDetail", "ToId",
+		// "BCD-TEST20150415001"));
+		
+		/*
+		 * myList.add(jasionXml.setContent("TaskHeader", "ToLoc", toLoc));
+		 * myList.add(jasionXml.setContent("TaskHeader", "Lot", "0000000027"));
+		 * myList.add(jasionXml.setContent("TaskHeader", "TaskDetailKey",
+		 * TaskDetailKey));
+		 */
+		String xmlStr = jasionXml.CreateXmlByXMLLIST("String", myList);
+		System.out.println(MyUtils.getAPITime2()+xmlStr);
+		try {
+			result += WMClient.getResult(WMClient.process(
+					"AdvancedShipNoticeAPI", "store", ck, xmlStr, user)); // WMSAPi
+			System.out.println(MyUtils.getAPITime2());
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		// log.info(result);
+		return result;
+	}
